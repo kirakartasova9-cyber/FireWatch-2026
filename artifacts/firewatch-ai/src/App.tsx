@@ -229,15 +229,27 @@ function AppView() {
 
           <div className="grid-main">
             <section className="panel" id="map-section" aria-labelledby="map-title">
-              <div className="panel-head"><div><div className="panel-title" id="map-title">Карта станций</div><div className="panel-sub">Схематичное расположение по координатам из API</div></div><span className="tiny-tag">{stations.length} точек</span></div>
+              <div className="panel-head"><div><div className="panel-title" id="map-title">Карта станций</div><div className="panel-sub">Спутниковый обзор · координаты станций из API</div></div><span className="tiny-tag">{stations.length} точек</span></div>
               <div className="map-wrap" data-testid="map-stations">
                 {stationsQuery.isLoading && !stations.length ? <div className="map-empty">Загружаем расположение станций…</div> : stations.length ? <>
                   <MapContainer center={center} zoom={4} scrollWheelZoom={false} attributionControl={true}>
-                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <TileLayer
+                      className="satellite-imagery"
+                      attribution='Tiles &copy; <a href="https://www.esri.com/">Esri</a> — Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+                      url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                      maxZoom={19}
+                    />
+                    <TileLayer
+                      className="satellite-labels"
+                      attribution='Labels &copy; <a href="https://www.esri.com/">Esri</a>'
+                      url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                      maxZoom={19}
+                    />
                     {stations.map((station) => <CircleMarker key={station.id} center={[station.latitude, station.longitude]} radius={station.level === 'critical' || station.level === 'high' ? 9 : 7} pathOptions={{ color: station.level === 'critical' || station.level === 'high' ? '#c36b3d' : '#52785d', fillColor: station.level === 'critical' || station.level === 'high' ? '#dc8652' : '#78a17b', fillOpacity: station.enabled ? 0.9 : 0.3, weight: 2 }}>
                       <Tooltip><strong>{station.name}</strong><br />{station.region}<br />Риск: {station.risk} · {levelLabels[station.level] ?? station.level}</Tooltip>
                     </CircleMarker>)}
                   </MapContainer>
+                  <div className="map-mode-badge"><span /> СПУТНИК</div>
                   <div className="map-legend"><div className="legend-row"><span className="legend-dot" /> Низкий / умеренный риск</div><div className="legend-row"><span className="legend-dot high" /> Высокий / критический</div></div>
                 </> : <div className="map-empty">Добавьте станцию, чтобы показать её на карте.</div>}
               </div>
