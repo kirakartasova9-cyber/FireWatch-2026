@@ -11,6 +11,8 @@ import {
   GetFirewatchStationsResponse,
   RunFirewatchScenarioBody,
   RunFirewatchScenarioResponse,
+  SubmitFirewatchMeasurementsBody,
+  SubmitFirewatchMeasurementsResponse,
   UpdateFirewatchAlertStatusBody,
   UpdateFirewatchAlertStatusParams,
   UpdateFirewatchAlertStatusResponse,
@@ -26,6 +28,8 @@ import {
   getMeasurements,
   getStations,
   runScenario,
+  MeasurementStationError,
+  storeMeasurements,
   updateAlertStatus,
   updateStation,
 } from "../lib/firewatch-store";
@@ -93,6 +97,36 @@ router.get("/firewatch/measurements", (req, res) => {
       getMeasurements(query.data.stationId, query.data.limit ?? 120),
     ),
   );
+});
+
+router.post("/firewatch/measurements", (req, res) => {
+  const body = SubmitFirewatchMeasurementsBody.safeParse(req.body);
+  if (!body.success) {
+    req.log.warn({ errors: body.error.message }, "Invalid sensor readings");
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  try {
+    const measurements = storeMeasurements(body.data.readings);
+    res.json(
+      SubmitFirewatchMeasurementsResponse.parse({
+        accepted: measurements.length,
+        measurements,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof MeasurementStationError) {
+      req.log.warn(
+        { code: error.code, stationId: error.stationId },
+        "Rejected readings for unavailable station",
+      );
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    req.log.error({ err: error }, "Unable to store sensor readings");
+    res.status(500).json({ error: "Не удалось сохранить измерения" });
+  }
 });
 
 router.get("/firewatch/alerts", (_req, res) => {

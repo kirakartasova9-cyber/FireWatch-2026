@@ -27,6 +27,8 @@ import type {
   GetFirewatchMeasurementsParams,
   HealthStatus,
   Measurement,
+  MeasurementBatchInput,
+  MeasurementBatchResult,
   ScenarioAction,
   Station,
   StationInput,
@@ -626,6 +628,94 @@ export function useGetFirewatchMeasurements<TData = Awaited<ReturnType<typeof ge
 
 
 
+
+export const getSubmitFirewatchMeasurementsUrl = () => {
+
+
+
+
+  return `/api/firewatch/measurements`
+}
+
+/**
+ * @summary Validate and store a batch of sensor readings
+ */
+export const submitFirewatchMeasurements = async (measurementBatchInput: MeasurementBatchInput, options?: Parameters<typeof customFetch>[1]): Promise<MeasurementBatchResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MeasurementBatchResult>(getSubmitFirewatchMeasurementsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(measurementBatchInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitFirewatchMeasurementsMutationKey = () => ['submitFirewatchMeasurements'] as const;
+
+export const getSubmitFirewatchMeasurementsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitFirewatchMeasurements>>, TError,SubmitFirewatchMeasurementsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitFirewatchMeasurements>>, TError,SubmitFirewatchMeasurementsMutationVariables, TContext> => {
+
+const mutationKey = getSubmitFirewatchMeasurementsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitFirewatchMeasurements>>, SubmitFirewatchMeasurementsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitFirewatchMeasurements(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitFirewatchMeasurementsMutationResult = NonNullable<Awaited<ReturnType<typeof submitFirewatchMeasurements>>>
+    export type SubmitFirewatchMeasurementsMutationBody = BodyType<MeasurementBatchInput>
+    export type SubmitFirewatchMeasurementsMutationError = ErrorType<void>
+    export type SubmitFirewatchMeasurementsMutationVariables = {data: BodyType<MeasurementBatchInput>}
+
+    /**
+ * @summary Validate and store a batch of sensor readings
+ */
+export const useSubmitFirewatchMeasurements = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitFirewatchMeasurements>>, TError,SubmitFirewatchMeasurementsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitFirewatchMeasurements>>,
+        TError,
+        SubmitFirewatchMeasurementsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubmitFirewatchMeasurementsMutationOptions(options));
+    }
 
 export const getGetFirewatchAlertsUrl = () => {
 

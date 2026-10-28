@@ -98,6 +98,39 @@ export interface Measurement {
   level: RiskLevel;
 }
 
+export interface MeasurementInput {
+  /** @minLength 1 */
+  stationId: string;
+  /**
+     * @minimum -50
+     * @maximum 80
+     */
+  temperature: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  humidity: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  smoke: number;
+}
+
+export interface MeasurementBatchInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  readings: MeasurementInput[];
+}
+
+export interface MeasurementBatchResult {
+  accepted: number;
+  measurements: Measurement[];
+}
+
 export interface Alert {
   id: number;
   stationId: string;

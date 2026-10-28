@@ -192,6 +192,48 @@ export const GetFirewatchMeasurementsResponse = zod.array(GetFirewatchMeasuremen
 
 
 /**
+ * @summary Validate and store a batch of sensor readings
+ */
+
+export const submitFirewatchMeasurementsBodyReadingsItemTemperatureMin = -50;
+export const submitFirewatchMeasurementsBodyReadingsItemTemperatureMax = 80;
+
+export const submitFirewatchMeasurementsBodyReadingsItemHumidityMin = 0;
+export const submitFirewatchMeasurementsBodyReadingsItemHumidityMax = 100;
+
+export const submitFirewatchMeasurementsBodyReadingsItemSmokeMin = 0;
+export const submitFirewatchMeasurementsBodyReadingsItemSmokeMax = 100;
+
+export const submitFirewatchMeasurementsBodyReadingsMax = 100;
+
+
+
+export const SubmitFirewatchMeasurementsBody = zod.object({
+  "readings": zod.array(zod.object({
+  "stationId": zod.string().min(1),
+  "temperature": zod.number().min(submitFirewatchMeasurementsBodyReadingsItemTemperatureMin).max(submitFirewatchMeasurementsBodyReadingsItemTemperatureMax),
+  "humidity": zod.number().min(submitFirewatchMeasurementsBodyReadingsItemHumidityMin).max(submitFirewatchMeasurementsBodyReadingsItemHumidityMax),
+  "smoke": zod.number().min(submitFirewatchMeasurementsBodyReadingsItemSmokeMin).max(submitFirewatchMeasurementsBodyReadingsItemSmokeMax)
+})).min(1).max(submitFirewatchMeasurementsBodyReadingsMax)
+})
+
+export const SubmitFirewatchMeasurementsResponse = zod.object({
+  "accepted": zod.number().int(),
+  "measurements": zod.array(zod.object({
+  "id": zod.number().int(),
+  "stationId": zod.string(),
+  "stationName": zod.string(),
+  "recordedAt": zod.coerce.date(),
+  "temperature": zod.number(),
+  "humidity": zod.number(),
+  "smoke": zod.number(),
+  "risk": zod.number().int(),
+  "level": zod.enum(['low', 'moderate', 'high', 'critical'])
+}))
+})
+
+
+/**
  * @summary List recent risk alerts
  */
 export const GetFirewatchAlertsResponseItem = zod.object({

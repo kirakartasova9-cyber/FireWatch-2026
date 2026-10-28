@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   useCreateFirewatchStation,
@@ -8,6 +8,7 @@ import {
   useGetFirewatchMeasurements,
   useGetFirewatchStations,
   useRunFirewatchScenario,
+  useSubmitFirewatchMeasurements,
   useUpdateFirewatchAlertStatus,
   useUpdateFirewatchStation,
   getGetFirewatchDashboardQueryKey,
@@ -15,7 +16,7 @@ import {
   getGetFirewatchMeasurementsQueryKey,
   getGetFirewatchAlertsQueryKey,
 } from '@workspace/api-client-react';
-import type { Alert, Measurement, Station, StationInput } from '@workspace/api-client-react';
+import type { Alert, Measurement, MeasurementInput, Station, StationInput } from '@workspace/api-client-react';
 import { AlertTriangle, Bell, CirclePause, Flame, Leaf, MapPinned, Pencil, Plus, RotateCcw, ShieldCheck, Signal, SlidersHorizontal, Thermometer, Trash2 } from 'lucide-react';
 import { CircleMarker, MapContainer, TileLayer, Tooltip } from 'react-leaflet';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from 'recharts';
@@ -26,6 +27,26 @@ const queryClient = new QueryClient();
 const measurementsParams = { limit: 100 };
 const levelLabels: Record<string, string> = { low: 'Низкий', moderate: 'Умеренный', high: 'Высокий', critical: 'Критический' };
 const modeLabels: Record<string, string> = { normal: 'Обычный сценарий', danger: 'Опасный сценарий', paused: 'Пауза' };
+
+function simulateReadings(stationIds: string[], mode: 'normal' | 'danger', tick: number): MeasurementInput[] {
+  return stationIds.map((stationId, index) => {
+    const wave = Math.sin(tick * 0.72 + index * 1.31);
+    if (mode === 'danger') {
+      return {
+        stationId,
+        temperature: Number((39 + index * 0.7 + wave * 1.4).toFixed(1)),
+        humidity: Math.round(22 + wave * 3),
+        smoke: Math.round(86 + wave * 5),
+      };
+    }
+    return {
+      stationId,
+      temperature: Number((18 + index * 0.5 + wave * 1.3).toFixed(1)),
+      humidity: Math.round(72 - index * 1.2 + wave * 3),
+      smoke: Math.round(7 + index + wave * 2),
+    };
+  });
+}
 
 function prettyDate(value?: string, withTime = false) {
   if (!value) return '—';
@@ -49,11 +70,16 @@ function AppView() {
   const deleteStation = useDeleteFirewatchStation();
   const updateAlert = useUpdateFirewatchAlertStatus();
   const runScenario = useRunFirewatchScenario();
+  const submitMeasurements = useSubmitFirewatchMeasurements();
   const [modalStation, setModalStation] = useState<Station | null | undefined>(undefined);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [activeNav, setActiveNav] = useState('overview');
+  const sampleSequence = useRef(0);
+  const sendingReadings = useRef(false);
 
   const stations = stationsQuery.data ?? dashboard.data?.stations ?? [];
+  const activeStationIds = useMemo(() => stations.filter((station) => station.enabled).map((station) => station.id), [stations]);
+  const activeStationSignature = activeStationIds.join('|');
   const alerts = alertsQuery.data ?? dashboard.data?.alerts ?? [];
   const measurements = measurementsQuery.data ?? [];
   const alertCount = dashboard.data?.summary.activeAlerts ?? alerts.filter((alert) => alert.status === 'new').length;
@@ -70,21 +96,44 @@ function AppView() {
     timeLabel: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(item.recordedAt)),
   })), [measurements]);
 
-  const notify = (text: string, error = false) => {
+  const notify = useCallback((text: string, error = false) => {
     setToast({ text, error });
     window.setTimeout(() => setToast(null), 3200);
-  };
-  const refreshAll = async () => {
+  }, []);
+  const refreshAll = useCallback(async () => {
     await Promise.all([
       client.invalidateQueries({ queryKey: getGetFirewatchDashboardQueryKey() }),
       client.invalidateQueries({ queryKey: getGetFirewatchStationsQueryKey() }),
       client.invalidateQueries({ queryKey: getGetFirewatchMeasurementsQueryKey(measurementsParams) }),
       client.invalidateQueries({ queryKey: getGetFirewatchAlertsQueryKey() }),
     ]);
-  };
+  }, [client]);
+  const sendMeasurements = useCallback(async (mode: 'normal' | 'danger', stationIds: string[]) => {
+    if (!stationIds.length || sendingReadings.current) return false;
+    sendingReadings.current = true;
+    try {
+      const data = await submitMeasurements.mutateAsync({
+        data: { readings: simulateReadings(stationIds, mode, ++sampleSequence.current) },
+      });
+      await refreshAll();
+      return data.accepted === stationIds.length;
+    } catch {
+      notify('Не удалось отправить измерения на сервер', true);
+      return false;
+    } finally {
+      sendingReadings.current = false;
+    }
+  }, [notify, refreshAll, submitMeasurements.mutateAsync]);
   const handleScenario = (action: 'normal' | 'danger' | 'pause' | 'reset') => {
     runScenario.mutate({ data: { action } }, {
-      onSuccess: async () => { await refreshAll(); notify('Сценарий обновлён'); },
+      onSuccess: async () => {
+        await refreshAll();
+        if (action === 'normal' || action === 'danger') {
+          const sent = await sendMeasurements(action, activeStationIds);
+          if (!sent) return;
+        }
+        notify('Сценарий обновлён');
+      },
       onError: () => notify('Не удалось изменить сценарий', true),
     });
   };
@@ -124,7 +173,17 @@ function AppView() {
     setActiveNav(id);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const isBusy = runScenario.isPending;
+  const isBusy = runScenario.isPending || submitMeasurements.isPending;
+
+  useEffect(() => {
+    const mode = dashboard.data?.mode;
+    if ((mode !== 'normal' && mode !== 'danger') || !activeStationSignature) return;
+    const stationIds = activeStationSignature.split('|');
+    const timer = window.setInterval(() => {
+      void sendMeasurements(mode, stationIds);
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [activeStationSignature, dashboard.data?.mode, sendMeasurements]);
 
   return (
     <div className="shell">

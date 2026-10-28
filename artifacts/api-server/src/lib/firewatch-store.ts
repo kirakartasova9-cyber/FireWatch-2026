@@ -57,6 +57,29 @@ export interface Dashboard {
   lastUpdated: string;
 }
 
+export interface SensorReading {
+  stationId: string;
+  temperature: number;
+  humidity: number;
+  smoke: number;
+}
+
+export class MeasurementStationError extends Error {
+  constructor(
+    public readonly code: "not_found" | "disabled" | "paused",
+    public readonly stationId: string,
+  ) {
+    super(
+      code === "not_found"
+        ? `Station ${stationId} does not exist`
+        : code === "disabled"
+          ? `Station ${stationId} is disabled`
+          : "Simulation is paused",
+    );
+    this.name = "MeasurementStationError";
+  }
+}
+
 const databasePath =
   process.env["FIREWATCH_SQLITE_PATH"] ??
   path.resolve(
@@ -193,8 +216,8 @@ function setState(key: string, value: string): void {
     .run(key, value);
 }
 
-function insertMeasurement(station: Station, recordedAt: string): void {
-  database
+function insertMeasurement(station: Station, recordedAt: string): number {
+  const result = database
     .prepare(`
       INSERT INTO measurements (station_id, station_name, recorded_at, temperature, humidity, smoke, risk, level)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -209,6 +232,7 @@ function insertMeasurement(station: Station, recordedAt: string): void {
       station.risk,
       station.level,
     );
+  return Number(result.lastInsertRowid);
 }
 
 function seedIfEmpty(): void {
@@ -247,7 +271,6 @@ function seedIfEmpty(): void {
     insertMeasurement(station, now);
   }
   setState("mode", "normal");
-  setState("tick_count", "0");
 }
 
 seedIfEmpty();
@@ -320,59 +343,80 @@ function recordAlertIfNeeded(station: Station, recordedAt: string): void {
     );
 }
 
-function makeMeasurement(mode: "normal" | "danger", index: number, tick: number) {
-  const wave = Math.sin(tick * 0.72 + index * 1.31);
-  if (mode === "danger") {
-    return {
-      temperature: Number((39 + index * 0.7 + wave * 1.4).toFixed(1)),
-      humidity: Math.round(22 + wave * 3),
-      smoke: Math.round(86 + wave * 5),
-    };
+export function storeMeasurements(readings: SensorReading[]): Measurement[] {
+  if (getState("mode", "normal") === "paused") {
+    throw new MeasurementStationError("paused", "");
   }
-  return {
-    temperature: Number((18 + index * 0.5 + wave * 1.3).toFixed(1)),
-    humidity: Math.round(72 - index * 1.2 + wave * 3),
-    smoke: Math.round(7 + index + wave * 2),
-  };
-}
 
-export function recordSimulationTick(): void {
-  const mode = getState("mode", "normal");
-  if (mode === "paused") return;
-  const scenarioMode = mode === "danger" ? "danger" : "normal";
-  const tick = Number(getState("tick_count", "0")) + 1;
-  setState("tick_count", String(tick));
-  const now = new Date().toISOString();
-  const updateStation = database.prepare(`
-    UPDATE stations
-    SET temperature = ?, humidity = ?, smoke = ?, risk = ?, level = ?, updated_at = ?
-    WHERE id = ?
-  `);
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    const results: Measurement[] = [];
+    const updateStation = database.prepare(`
+      UPDATE stations
+      SET temperature = ?, humidity = ?, smoke = ?, risk = ?, level = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    const stationLookup = database.prepare("SELECT * FROM stations WHERE id = ?");
 
-  stations()
-    .filter((station) => station.enabled)
-    .forEach((station, index) => {
-      const values = makeMeasurement(scenarioMode, index, tick);
-      const risk = calculateRisk(values.temperature, values.humidity, values.smoke);
+    for (const reading of readings) {
+      const row = stationLookup.get(reading.stationId) as
+        | Record<string, unknown>
+        | undefined;
+      if (!row) {
+        throw new MeasurementStationError("not_found", reading.stationId);
+      }
+
+      const existing = mapStation(row);
+      if (!existing.enabled) {
+        throw new MeasurementStationError("disabled", reading.stationId);
+      }
+
+      const recordedAt = new Date().toISOString();
+      const risk = calculateRisk(
+        reading.temperature,
+        reading.humidity,
+        reading.smoke,
+      );
       const updated: Station = {
-        ...station,
-        ...values,
+        ...existing,
+        temperature: reading.temperature,
+        humidity: reading.humidity,
+        smoke: reading.smoke,
         risk,
         level: riskLevel(risk),
-        updatedAt: now,
+        updatedAt: recordedAt,
       };
+
       updateStation.run(
         updated.temperature,
         updated.humidity,
         updated.smoke,
         updated.risk,
         updated.level,
-        now,
+        recordedAt,
         updated.id,
       );
-      insertMeasurement(updated, now);
-      recordAlertIfNeeded(updated, now);
-    });
+      const id = insertMeasurement(updated, recordedAt);
+      recordAlertIfNeeded(updated, recordedAt);
+      results.push({
+        id,
+        stationId: updated.id,
+        stationName: updated.name,
+        recordedAt,
+        temperature: updated.temperature,
+        humidity: updated.humidity,
+        smoke: updated.smoke,
+        risk: updated.risk,
+        level: updated.level,
+      });
+    }
+
+    database.exec("COMMIT");
+    return results;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function getDashboard(): Dashboard {
@@ -488,7 +532,6 @@ export function runScenario(action: "normal" | "danger" | "pause" | "reset"): Da
   if (action === "reset") {
     database.exec("DELETE FROM alerts; DELETE FROM measurements; DELETE FROM stations;");
     setState("mode", "normal");
-    setState("tick_count", "0");
     seedIfEmpty();
     return dashboard();
   }
@@ -499,11 +542,5 @@ export function runScenario(action: "normal" | "danger" | "pause" | "reset"): Da
   }
 
   setState("mode", action);
-  recordSimulationTick();
   return dashboard();
-}
-
-export function startFirewatchSimulation(): void {
-  const timer = setInterval(recordSimulationTick, 15_000);
-  timer.unref();
 }
