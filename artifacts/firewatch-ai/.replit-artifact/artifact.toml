@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "FireWatch AI"
+title = "kes beaux innovateisses"
 description = "Русскоязычный учебный прототип для демонстрации мониторинга лесных пожаров: показывает данные станций, уровни риска, графики, карту и журнал предупреждений. Не предназначен для обнаружения реальных пожаров."
 version = "1.0.0"
 id = "artifacts/firewatch-ai"

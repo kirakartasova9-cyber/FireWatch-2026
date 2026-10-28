@@ -190,7 +190,7 @@ function AppView() {
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark"><Flame aria-hidden="true" /></div>
-          <div>FireWatch AI<small>УЧЕБНЫЙ МОНИТОРИНГ</small></div>
+          <div>kes beaux innovateisses<small>УЧЕБНЫЙ МОНИТОРИНГ</small></div>
         </div>
         <div className="top-actions">
           <div className="updated"><Signal size={13} /> Обновлено {prettyDate(dashboard.data?.lastUpdated, true)}</div>
@@ -316,7 +316,7 @@ function AppView() {
               </table>
             </div> : <div className="empty-state" data-testid="empty-stations">Станций пока нет. Добавьте первую точку, чтобы увидеть её на карте.</div>}
           </section>
-          <div className="footer-note">FireWatch AI · учебные данные · не использовать для принятия оперативных решений</div>
+          <div className="footer-note">kes beaux innovateisses · учебные данные · не использовать для принятия оперативных решений</div>
         </main>
       </div>
 
