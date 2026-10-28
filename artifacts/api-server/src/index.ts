@@ -1,4 +1,5 @@
 import app from "./app";
+import { startFirewatchSimulation } from "./lib/firewatch-store";
 import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
@@ -21,5 +22,6 @@ app.listen(port, (err) => {
     process.exit(1);
   }
 
+  startFirewatchSimulation();
   logger.info({ port }, "Server listening");
 });

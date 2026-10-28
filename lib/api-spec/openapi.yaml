@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: firewatch
+    description: Учебная система мониторинга демонстрационных станций
 paths:
   /healthz:
     get:
@@ -24,6 +26,180 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /firewatch/dashboard:
+    get:
+      operationId: getFirewatchDashboard
+      tags: [firewatch]
+      summary: Get dashboard overview
+      responses:
+        "200":
+          description: Dashboard summary and current station state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /firewatch/stations:
+    get:
+      operationId: getFirewatchStations
+      tags: [firewatch]
+      summary: List monitoring stations
+      responses:
+        "200":
+          description: Monitoring stations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Station"
+    post:
+      operationId: createFirewatchStation
+      tags: [firewatch]
+      summary: Create a monitoring station
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationInput"
+      responses:
+        "201":
+          description: Created monitoring station
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+  /firewatch/stations/{stationId}:
+    patch:
+      operationId: updateFirewatchStation
+      tags: [firewatch]
+      summary: Update a monitoring station
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationUpdate"
+      responses:
+        "200":
+          description: Updated monitoring station
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+        "404":
+          description: Station not found
+    delete:
+      operationId: deleteFirewatchStation
+      tags: [firewatch]
+      summary: Delete a monitoring station
+      parameters:
+        - name: stationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delete result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+        "404":
+          description: Station not found
+  /firewatch/measurements:
+    get:
+      operationId: getFirewatchMeasurements
+      tags: [firewatch]
+      summary: Read recent measurement history
+      parameters:
+        - name: stationId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 120
+      responses:
+        "200":
+          description: Recent measurements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Measurement"
+  /firewatch/alerts:
+    get:
+      operationId: getFirewatchAlerts
+      tags: [firewatch]
+      summary: List recent risk alerts
+      responses:
+        "200":
+          description: Recent alert records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+  /firewatch/alerts/{alertId}/status:
+    patch:
+      operationId: updateFirewatchAlertStatus
+      tags: [firewatch]
+      summary: Update an alert handling status
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertStatusUpdate"
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+        "404":
+          description: Alert not found
+  /firewatch/scenario:
+    post:
+      operationId: runFirewatchScenario
+      tags: [firewatch]
+      summary: Change or reset the simulation scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScenarioAction"
+      responses:
+        "200":
+          description: Updated dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +209,107 @@ components:
           type: string
       required:
         - status
+    RiskLevel:
+      type: string
+      enum: [low, moderate, high, critical]
+    ScenarioMode:
+      type: string
+      enum: [normal, danger, paused]
+    AlertStatus:
+      type: string
+      enum: [new, handled]
+    Station:
+      type: object
+      required: [id, name, region, latitude, longitude, temperature, humidity, smoke, risk, level, enabled, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        region: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        temperature: { type: number }
+        humidity: { type: number }
+        smoke: { type: number }
+        risk: { type: integer }
+        level: { $ref: "#/components/schemas/RiskLevel" }
+        enabled: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+    StationInput:
+      type: object
+      required: [name, region, latitude, longitude]
+      properties:
+        name: { type: string, minLength: 1 }
+        region: { type: string, minLength: 1 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+    StationUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        region: { type: string, minLength: 1 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        enabled: { type: boolean }
+    Measurement:
+      type: object
+      required: [id, stationId, stationName, recordedAt, temperature, humidity, smoke, risk, level]
+      properties:
+        id: { type: integer }
+        stationId: { type: string }
+        stationName: { type: string }
+        recordedAt: { type: string, format: date-time }
+        temperature: { type: number }
+        humidity: { type: number }
+        smoke: { type: number }
+        risk: { type: integer }
+        level: { $ref: "#/components/schemas/RiskLevel" }
+    Alert:
+      type: object
+      required: [id, stationId, stationName, reason, risk, level, occurredAt, status]
+      properties:
+        id: { type: integer }
+        stationId: { type: string }
+        stationName: { type: string }
+        reason: { type: string }
+        risk: { type: integer }
+        level: { $ref: "#/components/schemas/RiskLevel" }
+        occurredAt: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/AlertStatus" }
+    DashboardSummary:
+      type: object
+      required: [stationCount, activeAlerts, averageRisk]
+      properties:
+        stationCount: { type: integer }
+        activeAlerts: { type: integer }
+        averageRisk: { type: integer }
+    Dashboard:
+      type: object
+      required: [summary, stations, alerts, mode, lastUpdated]
+      properties:
+        summary: { $ref: "#/components/schemas/DashboardSummary" }
+        stations:
+          type: array
+          items: { $ref: "#/components/schemas/Station" }
+        alerts:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        mode: { $ref: "#/components/schemas/ScenarioMode" }
+        lastUpdated: { type: string, format: date-time }
+    ScenarioAction:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [normal, danger, pause, reset]
+    AlertStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: "#/components/schemas/AlertStatus" }
+    DeleteResult:
+      type: object
+      required: [deleted]
+      properties:
+        deleted: { type: boolean }
 

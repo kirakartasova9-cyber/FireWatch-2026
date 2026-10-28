@@ -1,6 +1,6 @@
-# [Project name]
+# FireWatch AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Учебный прототип для показа демонстрационных станций мониторинга, графиков, сценариев риска и журнала предупреждений. Сайт не обнаруживает реальные пожары и не предназначен для принятия решений о безопасности.
 
 ## Run & Operate
 
@@ -22,15 +22,20 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/firewatch-ai` — русскоязычный веб-интерфейс.
+- `artifacts/api-server` — API и серверный пересчёт рисков.
+- `lib/api-spec/openapi.yaml` — исходный контракт API.
+- `data/firewatch.sqlite` — локальная SQLite-база с демонстрационными станциями, измерениями и предупреждениями.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Риск вычисляется на сервере по формуле из задания; интерфейс показывает полученный результат.
+- Измерения создаются автоматически каждые 15 секунд, пока сценарий не поставлен на паузу.
+- Начальные данные и сценарии полностью демонстрационные.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Панель показывает текущие показатели и риски станций, историю измерений и журнал предупреждений. Можно управлять станциями, отмечать предупреждения обработанными и запускать обычный, опасный, приостановленный или сброшенный сценарий.
 
 ## User preferences
 
