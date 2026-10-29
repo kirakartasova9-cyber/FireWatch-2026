@@ -32,7 +32,8 @@ import type {
   ScenarioAction,
   Station,
   StationInput,
-  StationUpdate
+  StationUpdate,
+  TelegramConnectionStatus
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -205,6 +206,83 @@ export function useGetFirewatchDashboard<TData = Awaited<ReturnType<typeof getFi
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetFirewatchDashboardQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetFirewatchTelegramStatusUrl = () => {
+
+
+
+
+  return `/api/firewatch/telegram/status`
+}
+
+/**
+ * @summary Check Telegram notification connection
+ */
+export const getFirewatchTelegramStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<TelegramConnectionStatus> => {
+
+  return customFetch<TelegramConnectionStatus>(getGetFirewatchTelegramStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFirewatchTelegramStatusQueryKey = () => {
+    return [
+    `/api/firewatch/telegram/status`
+    ] as const;
+    }
+
+
+export const getGetFirewatchTelegramStatusQueryOptions = <TData = Awaited<ReturnType<typeof getFirewatchTelegramStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFirewatchTelegramStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFirewatchTelegramStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFirewatchTelegramStatus>>> = ({ signal }) => getFirewatchTelegramStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFirewatchTelegramStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFirewatchTelegramStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getFirewatchTelegramStatus>>>
+export type GetFirewatchTelegramStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Check Telegram notification connection
+ */
+
+export function useGetFirewatchTelegramStatus<TData = Awaited<ReturnType<typeof getFirewatchTelegramStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFirewatchTelegramStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFirewatchTelegramStatusQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

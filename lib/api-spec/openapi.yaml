@@ -38,6 +38,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Dashboard"
+  /firewatch/telegram/status:
+    get:
+      operationId: getFirewatchTelegramStatus
+      tags: [firewatch]
+      summary: Check Telegram notification connection
+      responses:
+        "200":
+          description: Telegram configuration and connection state without credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramConnectionStatus"
   /firewatch/stations:
     get:
       operationId: getFirewatchStations
@@ -228,6 +240,18 @@ components:
           type: string
       required:
         - status
+    TelegramConnectionStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [not_configured, connected, error]
+        configured:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+      required: [status, configured, checkedAt]
     RiskLevel:
       type: string
       enum: [low, moderate, high, critical]

@@ -56,6 +56,16 @@ export const GetFirewatchDashboardResponse = zod.object({
 
 
 /**
+ * @summary Check Telegram notification connection
+ */
+export const GetFirewatchTelegramStatusResponse = zod.object({
+  "status": zod.enum(['not_configured', 'connected', 'error']),
+  "configured": zod.boolean(),
+  "checkedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List monitoring stations
  */
 export const GetFirewatchStationsResponseItem = zod.object({

@@ -9,6 +9,21 @@ export interface HealthStatus {
   status: string;
 }
 
+export type TelegramConnectionStatusStatus = typeof TelegramConnectionStatusStatus[keyof typeof TelegramConnectionStatusStatus];
+
+
+export const TelegramConnectionStatusStatus = {
+  not_configured: 'not_configured',
+  connected: 'connected',
+  error: 'error',
+} as const;
+
+export interface TelegramConnectionStatus {
+  status: TelegramConnectionStatusStatus;
+  configured: boolean;
+  checkedAt: string;
+}
+
 export type RiskLevel = typeof RiskLevel[keyof typeof RiskLevel];
 
 

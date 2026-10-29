@@ -64,6 +64,11 @@ export interface SensorReading {
   smoke: number;
 }
 
+export interface StoredMeasurementBatch {
+  measurements: Measurement[];
+  newAlerts: Alert[];
+}
+
 export class MeasurementStationError extends Error {
   constructor(
     public readonly code: "not_found" | "disabled" | "paused",
@@ -130,6 +135,13 @@ database.exec(`
     level TEXT NOT NULL,
     occurred_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'new'
+  );
+
+  CREATE TABLE IF NOT EXISTS telegram_notifications (
+    alert_id INTEGER PRIMARY KEY REFERENCES alerts(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK (status IN ('sending', 'sent', 'failed')),
+    updated_at TEXT NOT NULL,
+    error_code TEXT
   );
 
   CREATE TABLE IF NOT EXISTS app_state (
@@ -322,13 +334,13 @@ function reasonForRisk(station: Station): string {
   return reasons.length ? reasons.join(", ") : "совокупность показателей достигла порога";
 }
 
-function recordAlertIfNeeded(station: Station, recordedAt: string): void {
-  if (station.risk < 60) return;
+function recordAlertIfNeeded(station: Station, recordedAt: string): Alert | null {
+  if (station.risk < 60) return null;
   const unresolved = database
     .prepare("SELECT id FROM alerts WHERE station_id = ? AND status = 'new' LIMIT 1")
     .get(station.id);
-  if (unresolved) return;
-  database
+  if (unresolved) return null;
+  const result = database
     .prepare(`
       INSERT INTO alerts (station_id, station_name, reason, risk, level, occurred_at, status)
       VALUES (?, ?, ?, ?, ?, ?, 'new')
@@ -341,9 +353,13 @@ function recordAlertIfNeeded(station: Station, recordedAt: string): void {
       station.level,
       recordedAt,
     );
+  const created = database
+    .prepare("SELECT * FROM alerts WHERE id = ?")
+    .get(Number(result.lastInsertRowid)) as Record<string, unknown> | undefined;
+  return created ? mapAlert(created) : null;
 }
 
-export function storeMeasurements(readings: SensorReading[]): Measurement[] {
+export function storeMeasurements(readings: SensorReading[]): StoredMeasurementBatch {
   if (getState("mode", "normal") === "paused") {
     throw new MeasurementStationError("paused", "");
   }
@@ -351,6 +367,7 @@ export function storeMeasurements(readings: SensorReading[]): Measurement[] {
   database.exec("BEGIN IMMEDIATE");
   try {
     const results: Measurement[] = [];
+    const newAlerts: Alert[] = [];
     const updateStation = database.prepare(`
       UPDATE stations
       SET temperature = ?, humidity = ?, smoke = ?, risk = ?, level = ?, updated_at = ?
@@ -397,7 +414,8 @@ export function storeMeasurements(readings: SensorReading[]): Measurement[] {
         updated.id,
       );
       const id = insertMeasurement(updated, recordedAt);
-      recordAlertIfNeeded(updated, recordedAt);
+      const newAlert = recordAlertIfNeeded(updated, recordedAt);
+      if (newAlert) newAlerts.push(newAlert);
       results.push({
         id,
         stationId: updated.id,
@@ -412,11 +430,35 @@ export function storeMeasurements(readings: SensorReading[]): Measurement[] {
     }
 
     database.exec("COMMIT");
-    return results;
+    return { measurements: results, newAlerts };
   } catch (error) {
     database.exec("ROLLBACK");
     throw error;
   }
+}
+
+export function claimTelegramNotification(alertId: number): boolean {
+  const result = database
+    .prepare(`
+      INSERT OR IGNORE INTO telegram_notifications (alert_id, status, updated_at)
+      VALUES (?, 'sending', ?)
+    `)
+    .run(alertId, new Date().toISOString());
+  return Number(result.changes) === 1;
+}
+
+export function setTelegramNotificationStatus(
+  alertId: number,
+  status: "sent" | "failed",
+  errorCode?: string,
+): void {
+  database
+    .prepare(`
+      UPDATE telegram_notifications
+      SET status = ?, updated_at = ?, error_code = ?
+      WHERE alert_id = ?
+    `)
+    .run(status, new Date().toISOString(), errorCode ?? null, alertId);
 }
 
 export function getDashboard(): Dashboard {

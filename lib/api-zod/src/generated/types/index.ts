@@ -25,3 +25,5 @@ export * from './scenarioMode';
 export * from './station';
 export * from './stationInput';
 export * from './stationUpdate';
+export * from './telegramConnectionStatus';
+export * from './telegramConnectionStatusStatus';

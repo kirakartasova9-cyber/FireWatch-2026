@@ -7,6 +7,7 @@ import {
   useGetFirewatchDashboard,
   useGetFirewatchMeasurements,
   useGetFirewatchStations,
+  useGetFirewatchTelegramStatus,
   useRunFirewatchScenario,
   useSubmitFirewatchMeasurements,
   useUpdateFirewatchAlertStatus,
@@ -65,6 +66,9 @@ function AppView() {
     query: { queryKey: getGetFirewatchMeasurementsQueryKey(measurementsParams), refetchInterval: 12000 },
   });
   const alertsQuery = useGetFirewatchAlerts({ query: { queryKey: getGetFirewatchAlertsQueryKey(), refetchInterval: 20000 } });
+  const telegramStatus = useGetFirewatchTelegramStatus({
+    query: { queryKey: ['firewatch-telegram-status'], refetchInterval: 60000, retry: 1 },
+  });
   const createStation = useCreateFirewatchStation();
   const updateStation = useUpdateFirewatchStation();
   const deleteStation = useDeleteFirewatchStation();
@@ -174,6 +178,16 @@ function AppView() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const isBusy = runScenario.isPending || submitMeasurements.isPending;
+  const telegramState = telegramStatus.isError
+    ? 'error'
+    : telegramStatus.data?.status ?? 'checking';
+  const telegramLabel = telegramState === 'connected'
+    ? 'Telegram подключён'
+    : telegramState === 'not_configured'
+      ? 'Telegram не настроен'
+      : telegramState === 'checking'
+        ? 'Проверка Telegram'
+        : 'Telegram недоступен';
 
   useEffect(() => {
     const mode = dashboard.data?.mode;
@@ -194,6 +208,10 @@ function AppView() {
         </div>
         <div className="top-actions">
           <div className="updated"><Signal size={13} /> Обновлено {prettyDate(dashboard.data?.lastUpdated, true)}</div>
+          <div className={`telegram-status ${telegramState}`} title={telegramLabel} aria-label={telegramLabel} role="status">
+            <span className="telegram-status-dot" />
+            <span className="telegram-status-label">{telegramLabel}</span>
+          </div>
           <div className="live-pill"><span className="live-dot" /> ДЕМО-СРЕДА</div>
         </div>
       </header>

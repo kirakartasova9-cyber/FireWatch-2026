@@ -9,6 +9,7 @@ import {
   GetFirewatchMeasurementsQueryParams,
   GetFirewatchMeasurementsResponse,
   GetFirewatchStationsResponse,
+  GetFirewatchTelegramStatusResponse,
   RunFirewatchScenarioBody,
   RunFirewatchScenarioResponse,
   SubmitFirewatchMeasurementsBody,
@@ -33,8 +34,18 @@ import {
   updateAlertStatus,
   updateStation,
 } from "../lib/firewatch-store";
+import {
+  getTelegramConnectionStatus,
+  notifyTelegramOfNewAlert,
+} from "../lib/telegram";
 
 const router: IRouter = Router();
+
+router.get("/firewatch/telegram/status", async (_req, res): Promise<void> => {
+  res.json(
+    GetFirewatchTelegramStatusResponse.parse(await getTelegramConnectionStatus()),
+  );
+});
 
 router.get("/firewatch/dashboard", (_req, res) => {
   res.json(GetFirewatchDashboardResponse.parse(getDashboard()));
@@ -108,7 +119,17 @@ router.post("/firewatch/measurements", (req, res) => {
   }
 
   try {
-    const measurements = storeMeasurements(body.data.readings);
+    const { measurements, newAlerts } = storeMeasurements(body.data.readings);
+    for (const alert of newAlerts) {
+      if (alert.level !== "high" && alert.level !== "critical") continue;
+      void notifyTelegramOfNewAlert(alert).then((result) => {
+        if (result === "failed") {
+          req.log.warn({ alertId: alert.id }, "Telegram alert delivery failed");
+        }
+      }).catch(() => {
+        req.log.warn({ alertId: alert.id }, "Telegram alert delivery failed");
+      });
+    }
     res.json(
       SubmitFirewatchMeasurementsResponse.parse({
         accepted: measurements.length,
